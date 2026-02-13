@@ -12,7 +12,9 @@ import {
   Check,
   Sparkles,
   PenLine,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -82,16 +84,18 @@ export function ContentStudio() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<GeneratedContent[]>([]);
+  const [activeTab, setActiveTab] = useState('create');
 
   const generateContent = async () => {
     setIsGenerating(true);
     try {
+      const topic = formData.topic || formData.jobTitle || formData.clientName || formData.candidateName || 'General';
       const response = await fetch('/api/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: selectedTemplate.type,
-          topic: formData.topic || formData.jobTitle || formData.clientName || 'General',
+          topic,
           tone: formData.tone || 'professional',
           additionalInfo: JSON.stringify(formData)
         })
@@ -105,9 +109,19 @@ export function ContentStudio() {
         };
         setGeneratedContent(newContent);
         setHistory(prev => [newContent, ...prev.slice(0, 9)]);
+      } else {
+        setGeneratedContent({
+          template: selectedTemplate.title,
+          content: 'Error: ' + data.error,
+          timestamp: new Date()
+        });
       }
     } catch (error) {
-      console.error('Failed to generate content:', error);
+      setGeneratedContent({
+        template: selectedTemplate.title,
+        content: 'Failed to generate. Please check your API key.',
+        timestamp: new Date()
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -119,6 +133,25 @@ export function ContentStudio() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const downloadContent = () => {
+    if (generatedContent) {
+      const blob = new Blob([generatedContent.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedTemplate.title.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const clearForm = () => {
+    setFormData({});
+    setGeneratedContent(null);
   };
 
   const renderField = (field: string) => {
@@ -186,7 +219,7 @@ export function ContentStudio() {
 
   return (
     <div className="h-full flex flex-col">
-      <Tabs defaultValue="create" className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="px-4 pt-4">
           <TabsList className="bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)]">
             <TabsTrigger value="create" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600">
@@ -219,37 +252,40 @@ export function ContentStudio() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Template Selector */}
-                <div className="grid grid-cols-2 gap-2">
-                  {templates.map((template) => {
-                    const Icon = template.icon;
-                    const isActive = selectedTemplate.id === template.id;
-                    return (
-                      <button
-                        key={template.id}
-                        onClick={() => {
-                          setSelectedTemplate(template);
-                          setFormData({});
-                          setGeneratedContent(null);
-                        }}
-                        className={cn(
-                          'p-3 rounded-lg border text-left transition-all',
-                          isActive
-                            ? `bg-gradient-to-r ${template.color} border-transparent`
-                            : 'bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)] hover:border-purple-500/50'
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Icon className={cn('w-4 h-4', isActive ? 'text-white' : 'text-muted-foreground')} />
-                          <span className={cn('text-sm font-medium', isActive ? 'text-white' : 'text-white')}>
-                            {template.title}
-                          </span>
-                        </div>
-                        <p className={cn('text-xs mt-1', isActive ? 'text-white/80' : 'text-muted-foreground')}>
-                          {template.description}
-                        </p>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-2">
+                  <Label className="text-white text-sm">Select Template</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {templates.map((template) => {
+                      const Icon = template.icon;
+                      const isActive = selectedTemplate.id === template.id;
+                      return (
+                        <button
+                          key={template.id}
+                          onClick={() => {
+                            setSelectedTemplate(template);
+                            setFormData({});
+                            setGeneratedContent(null);
+                          }}
+                          className={cn(
+                            'p-3 rounded-lg border text-left transition-all',
+                            isActive
+                              ? `bg-gradient-to-r ${template.color} border-transparent`
+                              : 'bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)] hover:border-purple-500/50'
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon className={cn('w-4 h-4', isActive ? 'text-white' : 'text-muted-foreground')} />
+                            <span className={cn('text-sm font-medium', isActive ? 'text-white' : 'text-white')}>
+                              {template.title}
+                            </span>
+                          </div>
+                          <p className={cn('text-xs mt-1', isActive ? 'text-white/80' : 'text-muted-foreground')}>
+                            {template.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Dynamic Fields */}
@@ -257,24 +293,34 @@ export function ContentStudio() {
                   {selectedTemplate.fields.map(renderField)}
                 </div>
 
-                {/* Generate Button */}
-                <Button
-                  onClick={generateContent}
-                  disabled={isGenerating}
-                  className="w-full bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
-                >
-                  {isGenerating ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Generate Content
-                    </>
-                  )}
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={clearForm}
+                    className="flex-1 bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)]"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear
+                  </Button>
+                  <Button
+                    onClick={generateContent}
+                    disabled={isGenerating}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -299,6 +345,14 @@ export function ContentStudio() {
                         ) : (
                           <Copy className="w-4 h-4" />
                         )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadContent}
+                        className="bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)]"
+                      >
+                        <Download className="w-4 h-4" />
                       </Button>
                     </div>
                   )}
@@ -336,6 +390,7 @@ export function ContentStudio() {
                   onClick={() => {
                     setSelectedTemplate(template);
                     setFormData({});
+                    setActiveTab('create');
                   }}
                 >
                   <CardContent className="p-6">
@@ -387,7 +442,10 @@ export function ContentStudio() {
                     <div
                       key={index}
                       className="p-4 rounded-lg bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)] hover:border-purple-500/50 transition-colors cursor-pointer"
-                      onClick={() => setGeneratedContent(item)}
+                      onClick={() => {
+                        setGeneratedContent(item);
+                        setActiveTab('create');
+                      }}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
