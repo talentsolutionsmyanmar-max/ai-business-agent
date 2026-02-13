@@ -1,102 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const CONTENT_TEMPLATES: Record<string, string> = {
-  'linkedin-thought': `You are a LinkedIn content expert. Create a thought leadership post for a recruitment company. The post should be insightful, professional, and engaging. Use relevant hashtags. Keep it under 3000 characters.`,
-  
-  'linkedin-job': `You are a recruitment marketing expert. Create an engaging LinkedIn job posting that will attract top talent. Make it compelling and professional. Use relevant hashtags. Keep it under 3000 characters.`,
-  
-  'linkedin-culture': `You are an employer branding specialist. Create a LinkedIn post showcasing company culture for a recruitment firm. Make it authentic and engaging. Use relevant hashtags. Keep it under 3000 characters.`,
-  
-  'linkedin-insights': `You are a recruitment industry analyst. Create a LinkedIn post sharing valuable industry insights or trends. Be informative and thought-provoking. Use relevant hashtags. Keep it under 3000 characters.`,
-  
-  'email-candidate': `You are a recruitment specialist. Write a professional email to a candidate. Be personal yet professional. Include clear next steps. Keep it concise.`,
-  
-  'email-client': `You are a business development specialist. Write a professional email to a client. Be consultative and value-focused. Include clear calls to action.`,
-  
-  'job-description': `You are a talent acquisition expert. Create a compelling job description that attracts top talent. Include: role overview, key responsibilities, qualifications, and benefits.`,
-  
-  'proposal': `You are a recruitment business development expert. Create a compelling service proposal for a potential client. Include: their needs, our solution, methodology, and timeline.`,
-  
-  'follow-up': `You are a relationship management expert. Create a follow-up message that maintains engagement. Be professional.`
-};
-
-async function callGroq(prompt: string) {
-  const apiKey = process.env.GROQ_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('GROQ_API_KEY not configured');
-  }
-
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        { role: 'system', content: 'You are an expert content creator for the recruitment industry.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.8,
-      max_tokens: 1500,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Groq API error: ${JSON.stringify(errorData)}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0]?.message?.content || 'Unable to generate content.';
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, topic, tone, additionalInfo } = body;
+    const { type, topic, tone } = body;
 
-    const template = CONTENT_TEMPLATES[type] || CONTENT_TEMPLATES['linkedin-thought'];
+    const apiKey = process.env.GROQ_API_KEY;
     
-    const prompt = `${template}
-
-**Topic:** ${topic || 'General recruitment industry'}
-**Tone:** ${tone || 'professional'}
-${additionalInfo ? `**Additional Info:** ${additionalInfo}` : ''}
-
-Generate the content now:`;
-
-    let content: string;
-
-    if (process.env.GROQ_API_KEY) {
-      content = await callGroq(prompt);
-    } else {
+    if (!apiKey) {
       return NextResponse.json({
         success: false,
-        error: 'AI service not configured. Please add GROQ_API_KEY.',
-        needsApiKey: true
+        error: 'GROQ_API_KEY is not set.',
       }, { status: 500 });
     }
 
+    const prompts: Record<string, string> = {
+      'linkedin-thought': `Write a professional LinkedIn thought leadership post about: ${topic || 'recruitment industry trends'}. Make it engaging and insightful. Include relevant hashtags.`,
+      'linkedin-job': `Write an engaging LinkedIn job posting for: ${topic || 'a tech position'}. Make it compelling to attract top talent.`,
+      'linkedin-culture': `Write a LinkedIn post about company culture for a recruitment agency. Topic: ${topic || 'our team values'}.`,
+      'linkedin-insights': `Write a LinkedIn post with industry insights about: ${topic || 'hiring trends'}.`,
+      'email-candidate': `Write a professional email to a candidate about: ${topic || 'interview follow-up'}.`,
+      'job-description': `Write a job description for: ${topic || 'Software Developer'}. Include responsibilities, requirements, and benefits.`,
+    };
+
+    const prompt = prompts[type] || prompts['linkedin-thought'];
+    const fullPrompt = `${prompt}\n\nTone: ${tone || 'professional'}`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: 'You are an expert content writer for a recruitment company.' },
+          { role: 'user', content: fullPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return NextResponse.json({
+        success: false,
+        error: `API Error: ${response.status}`,
+      }, { status: 500 });
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || 'Unable to generate content.';
+
     return NextResponse.json({
       success: true,
-      content,
-      type,
+      content: content,
       timestamp: new Date().toISOString()
     });
 
   } catch (error: unknown) {
-    console.error('Content API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to generate content.',
-        details: errorMessage 
-      },
-      { status: 500 }
-    );
+    console.error('Content Error:', error);
+    return NextResponse.json({
+      success: false,
+      error: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    }, { status: 500 });
   }
 }
