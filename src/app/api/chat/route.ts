@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SYSTEM_PROMPT = `You are an expert AI Business Agent acting as a Chief Marketing Officer (CMO) and Business Manager for a recruitment company specializing in talent solutions. You help with LinkedIn marketing, recruitment strategies, content creation, and business development. Be professional, helpful, and provide actionable advice.`;
-
 export async function POST(request: NextRequest) {
+  const apiKey = process.env.GROQ_API_KEY;
+  
+  // Debug: Check if API key exists
+  if (!apiKey) {
+    return NextResponse.json({
+      success: false,
+      error: 'GROQ_API_KEY not found in environment variables',
+      debug: 'Please add GROQ_API_KEY in Vercel Settings > Environment Variables'
+    }, { status: 500 });
+  }
+
+  // Debug: Check API key format
+  if (!apiKey.startsWith('gsk_')) {
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid API key format',
+      debug: 'API key should start with "gsk_"'
+    }, { status: 500 });
+  }
+
   try {
     const body = await request.json();
     const { messages } = body;
-
-    const apiKey = process.env.GROQ_API_KEY;
-    
-    if (!apiKey) {
-      return NextResponse.json({
-        success: false,
-        error: 'GROQ_API_KEY is not set. Please add it in Vercel Environment Variables.',
-      }, { status: 500 });
-    }
-
-    const chatMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...(messages || [])
-    ];
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -29,35 +33,39 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
-        messages: chatMessages,
+        messages: [
+          { role: 'system', content: 'You are a helpful AI assistant for a recruitment company. Be professional and concise.' },
+          ...(messages || [])
+        ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 500,
       }),
     });
 
+    const responseText = await response.text();
+    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Groq API Error:', response.status, errorText);
       return NextResponse.json({
         success: false,
-        error: `API Error: ${response.status} - ${errorText}`,
+        error: `Groq API Error (${response.status})`,
+        debug: responseText,
+        keyPreview: apiKey.substring(0, 10) + '...'
       }, { status: 500 });
     }
 
-    const data = await response.json();
-    const message = data.choices?.[0]?.message?.content || 'No response generated.';
+    const data = JSON.parse(responseText);
+    const message = data.choices?.[0]?.message?.content || 'No response';
 
     return NextResponse.json({
       success: true,
-      message: message,
-      timestamp: new Date().toISOString()
+      message: message
     });
 
   } catch (error: unknown) {
-    console.error('Chat Error:', error);
     return NextResponse.json({
       success: false,
-      error: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error: 'Request failed',
+      debug: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }
