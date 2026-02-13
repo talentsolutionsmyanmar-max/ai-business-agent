@@ -1,4 +1,3 @@
-import ZAI from 'z-ai-web-dev-sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
 const SYSTEM_PROMPT = `You are an expert AI Business Agent acting as a Chief Marketing Officer (CMO) and Business Manager for a recruitment company. Your expertise includes:
@@ -28,34 +27,74 @@ When asked to create content, always format it clearly and provide variations wh
 
 You are here to help the recruitment team succeed by providing expert guidance on marketing, business development, and content creation.`;
 
+async function callOpenAI(messages: Array<{role: string, content: string}>) {
+  const OpenAI = (await import('openai')).default;
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY not configured');
+  }
+
+  const openai = new OpenAI({ apiKey });
+  
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages: messages as Array<{role: 'system' | 'user' | 'assistant', content: string}>,
+    temperature: 0.7,
+    max_tokens: 2000,
+  });
+
+  return completion.choices[0]?.message?.content || 'I apologize, I was unable to generate a response.';
+}
+
+async function callZAI(messages: Array<{role: string, content: string}>) {
+  const ZAI = (await import('z-ai-web-dev-sdk')).default;
+  const zai = await ZAI.create();
+  
+  const completion = await zai.chat.completions.create({
+    messages: messages as Array<{role: 'system' | 'user' | 'assistant', content: string}>,
+    temperature: 0.7,
+    max_tokens: 2000,
+  });
+
+  return completion.choices[0]?.message?.content || 'I apologize, I was unable to generate a response.';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { messages, context } = body;
 
-    const zai = await ZAI.create();
-
     // Build the messages array with the system prompt
-    const chatMessages = [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+    const chatMessages: Array<{role: string, content: string}> = [
+      { role: 'system', content: SYSTEM_PROMPT },
       ...(messages || [])
     ];
 
-    // Add context if provided (e.g., "generate linkedin post about...")
+    // Add context if provided
     if (context) {
       chatMessages.push({ 
-        role: 'user' as const, 
+        role: 'user', 
         content: `Context for this request: ${context}` 
       });
     }
 
-    const completion = await zai.chat.completions.create({
-      messages: chatMessages,
-      temperature: 0.7,
-      max_tokens: 2000,
-    });
+    let assistantMessage: string;
 
-    const assistantMessage = completion.choices[0]?.message?.content || 'I apologize, I was unable to generate a response. Please try again.';
+    // Try OpenAI first (for Vercel), then fall back to ZAI (for local)
+    if (process.env.OPENAI_API_KEY) {
+      assistantMessage = await callOpenAI(chatMessages);
+    } else {
+      try {
+        assistantMessage = await callZAI(chatMessages);
+      } catch {
+        return NextResponse.json({
+          success: false,
+          error: 'AI service not configured. Please add OPENAI_API_KEY to your environment variables.',
+          needsApiKey: true
+        }, { status: 500 });
+      }
+    }
 
     return NextResponse.json({
       success: true,

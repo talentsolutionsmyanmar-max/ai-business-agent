@@ -1,7 +1,6 @@
-import ZAI from 'z-ai-web-dev-sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const CONTENT_TEMPLATES = {
+const CONTENT_TEMPLATES: Record<string, string> = {
   'linkedin-thought': `You are a LinkedIn content expert. Create a thought leadership post for a recruitment company. The post should be insightful, professional, and engaging. Use relevant hashtags. Keep it under 3000 characters.`,
   
   'linkedin-job': `You are a recruitment marketing expert. Create an engaging LinkedIn job posting that will attract top talent. Include any relevant details provided. Make it compelling and professional. Use relevant hashtags. Keep it under 3000 characters.`,
@@ -21,14 +20,51 @@ const CONTENT_TEMPLATES = {
   'follow-up': `You are a relationship management expert. Create a follow-up message that maintains engagement without being pushy. Be value-focused and professional.`
 };
 
+async function callOpenAI(prompt: string) {
+  const OpenAI = (await import('openai')).default;
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY not configured');
+  }
+
+  const openai = new OpenAI({ apiKey });
+  
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages: [
+      { role: 'system', content: 'You are an expert content creator for the recruitment industry.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.8,
+    max_tokens: 1500,
+  });
+
+  return completion.choices[0]?.message?.content || 'Unable to generate content. Please try again.';
+}
+
+async function callZAI(prompt: string) {
+  const ZAI = (await import('z-ai-web-dev-sdk')).default;
+  const zai = await ZAI.create();
+  
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: 'system', content: 'You are an expert content creator for the recruitment industry.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.8,
+    max_tokens: 1500,
+  });
+
+  return completion.choices[0]?.message?.content || 'Unable to generate content. Please try again.';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { type, topic, tone, additionalInfo } = body;
 
-    const zai = await ZAI.create();
-
-    const template = CONTENT_TEMPLATES[type as keyof typeof CONTENT_TEMPLATES] || CONTENT_TEMPLATES['linkedin-thought'];
+    const template = CONTENT_TEMPLATES[type] || CONTENT_TEMPLATES['linkedin-thought'];
     
     const prompt = `${template}
 
@@ -38,16 +74,22 @@ ${additionalInfo ? `**Additional Information:** ${additionalInfo}` : ''}
 
 Generate the content now:`;
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'You are an expert content creator for the recruitment industry.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.8,
-      max_tokens: 1500,
-    });
+    let content: string;
 
-    const content = completion.choices[0]?.message?.content || 'Unable to generate content. Please try again.';
+    // Try OpenAI first (for Vercel), then fall back to ZAI (for local)
+    if (process.env.OPENAI_API_KEY) {
+      content = await callOpenAI(prompt);
+    } else {
+      try {
+        content = await callZAI(prompt);
+      } catch {
+        return NextResponse.json({
+          success: false,
+          error: 'AI service not configured. Please add OPENAI_API_KEY to your environment variables.',
+          needsApiKey: true
+        }, { status: 500 });
+      }
+    }
 
     return NextResponse.json({
       success: true,
