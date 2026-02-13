@@ -27,24 +27,34 @@ When asked to create content, always format it clearly and provide variations wh
 
 You are here to help the recruitment team succeed by providing expert guidance on marketing, business development, and content creation.`;
 
-async function callOpenAI(messages: Array<{role: string, content: string}>) {
-  const OpenAI = (await import('openai')).default;
-  const apiKey = process.env.OPENAI_API_KEY;
+async function callGroq(messages: Array<{role: string, content: string}>) {
+  const apiKey = process.env.GROQ_API_KEY;
   
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY not configured');
+    throw new Error('GROQ_API_KEY not configured');
   }
 
-  const openai = new OpenAI({ apiKey });
-  
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo',
-    messages: messages as Array<{role: 'system' | 'user' | 'assistant', content: string}>,
-    temperature: 0.7,
-    max_tokens: 2000,
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 2000,
+    }),
   });
 
-  return completion.choices[0]?.message?.content || 'I apologize, I was unable to generate a response.';
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Groq API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0]?.message?.content || 'I apologize, I was unable to generate a response.';
 }
 
 async function callZAI(messages: Array<{role: string, content: string}>) {
@@ -65,13 +75,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { messages, context } = body;
 
-    // Build the messages array with the system prompt
     const chatMessages: Array<{role: string, content: string}> = [
       { role: 'system', content: SYSTEM_PROMPT },
       ...(messages || [])
     ];
 
-    // Add context if provided
     if (context) {
       chatMessages.push({ 
         role: 'user', 
@@ -81,16 +89,16 @@ export async function POST(request: NextRequest) {
 
     let assistantMessage: string;
 
-    // Try OpenAI first (for Vercel), then fall back to ZAI (for local)
-    if (process.env.OPENAI_API_KEY) {
-      assistantMessage = await callOpenAI(chatMessages);
+    // Try Groq first, then ZAI
+    if (process.env.GROQ_API_KEY) {
+      assistantMessage = await callGroq(chatMessages);
     } else {
       try {
         assistantMessage = await callZAI(chatMessages);
       } catch {
         return NextResponse.json({
           success: false,
-          error: 'AI service not configured. Please add OPENAI_API_KEY to your environment variables.',
+          error: 'AI service not configured. Please add GROQ_API_KEY to your environment variables. Get a free key at: https://console.groq.com/keys',
           needsApiKey: true
         }, { status: 500 });
       }

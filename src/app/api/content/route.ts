@@ -20,27 +20,37 @@ const CONTENT_TEMPLATES: Record<string, string> = {
   'follow-up': `You are a relationship management expert. Create a follow-up message that maintains engagement without being pushy. Be value-focused and professional.`
 };
 
-async function callOpenAI(prompt: string) {
-  const OpenAI = (await import('openai')).default;
-  const apiKey = process.env.OPENAI_API_KEY;
+async function callGroq(prompt: string) {
+  const apiKey = process.env.GROQ_API_KEY;
   
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY not configured');
+    throw new Error('GROQ_API_KEY not configured');
   }
 
-  const openai = new OpenAI({ apiKey });
-  
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo',
-    messages: [
-      { role: 'system', content: 'You are an expert content creator for the recruitment industry.' },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.8,
-    max_tokens: 1500,
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are an expert content creator for the recruitment industry.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.8,
+      max_tokens: 1500,
+    }),
   });
 
-  return completion.choices[0]?.message?.content || 'Unable to generate content. Please try again.';
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Groq API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0]?.message?.content || 'Unable to generate content. Please try again.';
 }
 
 async function callZAI(prompt: string) {
@@ -76,16 +86,16 @@ Generate the content now:`;
 
     let content: string;
 
-    // Try OpenAI first (for Vercel), then fall back to ZAI (for local)
-    if (process.env.OPENAI_API_KEY) {
-      content = await callOpenAI(prompt);
+    // Try Groq first, then ZAI
+    if (process.env.GROQ_API_KEY) {
+      content = await callGroq(prompt);
     } else {
       try {
         content = await callZAI(prompt);
       } catch {
         return NextResponse.json({
           success: false,
-          error: 'AI service not configured. Please add OPENAI_API_KEY to your environment variables.',
+          error: 'AI service not configured. Please add GROQ_API_KEY to your environment variables.',
           needsApiKey: true
         }, { status: 500 });
       }
