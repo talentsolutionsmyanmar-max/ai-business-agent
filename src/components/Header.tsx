@@ -8,8 +8,7 @@ import {
   MessageSquare,
   Calendar,
   ChevronDown,
-  Moon,
-  Sun,
+  Settings,
   Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,9 +27,29 @@ import {
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  onNavigate?: (module: string) => void;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+// User profile - can be customized
+const userProfile = {
+  name: 'Tommy Burman',
+  email: 'tommy@talentsolutionsmm.com',
+  role: 'Owner',
+  company: 'Talent Solutions Myanmar',
+  initials: 'TB',
+  avatar: ''
+};
+
+export function Header({ title, subtitle, onNavigate }: HeaderProps) {
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      // In a real app, this would search across candidates, clients, jobs
+      alert(`Searching for: ${searchQuery}`);
+    }
+  };
+
   return (
     <header className="h-16 border-b border-[oklch(0.25_0.03_280)] bg-[oklch(0.1_0.015_280)]/80 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-40">
       {/* Left Section - Title */}
@@ -48,6 +67,9 @@ export function Header({ title, subtitle }: HeaderProps) {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearch}
             placeholder="Search candidates, clients, jobs..."
             className="pl-10 bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)] focus:border-purple-500/50 text-white placeholder:text-muted-foreground"
           />
@@ -67,6 +89,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             variant="ghost"
             size="icon"
             className="relative bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)] hover:bg-[oklch(0.2_0.03_280)]"
+            title="Calendar"
           >
             <Calendar className="w-4 h-4 text-muted-foreground" />
           </Button>
@@ -74,6 +97,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             variant="ghost"
             size="icon"
             className="relative bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)] hover:bg-[oklch(0.2_0.03_280)]"
+            title="Messages"
           >
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
             <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center bg-purple-500 text-[10px]">
@@ -84,6 +108,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             variant="ghost"
             size="icon"
             className="relative bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)] hover:bg-[oklch(0.2_0.03_280)]"
+            title="Notifications"
           >
             <Bell className="w-4 h-4 text-muted-foreground" />
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
@@ -107,32 +132,46 @@ export function Header({ title, subtitle }: HeaderProps) {
               className="flex items-center gap-2 px-2 hover:bg-[oklch(0.18_0.03_280)]"
             >
               <Avatar className="w-8 h-8 border-2 border-purple-500/50">
-                <AvatarImage src="/avatar.png" alt="User" />
+                <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
                 <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-600 text-white text-sm">
-                  JD
+                  {userProfile.initials}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden xl:block text-left">
-                <p className="text-sm font-medium text-white">John Doe</p>
-                <p className="text-xs text-muted-foreground">Admin</p>
+                <p className="text-sm font-medium text-white">{userProfile.name}</p>
+                <p className="text-xs text-muted-foreground">{userProfile.role}</p>
               </div>
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)]">
-            <DropdownMenuLabel className="text-white">My Account</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-white">
+              <div className="flex flex-col">
+                <span>{userProfile.name}</span>
+                <span className="text-xs font-normal text-muted-foreground">{userProfile.email}</span>
+              </div>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-[oklch(0.25_0.03_280)]" />
-            <DropdownMenuItem className="text-muted-foreground hover:text-white focus:text-white">
-              Profile Settings
+            <DropdownMenuItem 
+              className="text-muted-foreground hover:text-white focus:text-white cursor-pointer"
+              onClick={() => onNavigate?.('settings')}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Account Settings
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-muted-foreground hover:text-white focus:text-white">
+            <DropdownMenuItem className="text-muted-foreground hover:text-white focus:text-white cursor-pointer">
+              <Bell className="w-4 h-4 mr-2" />
               Notifications
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-muted-foreground hover:text-white focus:text-white">
-              API Keys
+            <DropdownMenuItem className="text-muted-foreground hover:text-white focus:text-white cursor-pointer">
+              <Zap className="w-4 h-4 mr-2" />
+              API Configuration
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[oklch(0.25_0.03_280)]" />
-            <DropdownMenuItem className="text-red-400 focus:text-red-400">
+            <DropdownMenuItem 
+              className="text-red-400 focus:text-red-400 cursor-pointer"
+              onClick={() => alert('You have been signed out. Refresh the page to continue.')}
+            >
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

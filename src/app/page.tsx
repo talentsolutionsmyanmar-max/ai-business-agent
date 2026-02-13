@@ -9,6 +9,7 @@ import { MarketingHub } from '@/components/MarketingHub';
 import { RecruitmentCRM } from '@/components/RecruitmentCRM';
 import { Analytics } from '@/components/Analytics';
 import { ContentStudio } from '@/components/ContentStudio';
+import { SettingsModule } from '@/components/SettingsModule';
 
 const moduleConfig = {
   'ai-command': {
@@ -35,6 +36,10 @@ const moduleConfig = {
     title: 'Content Studio',
     subtitle: 'AI-powered content creation for all your needs',
   },
+  'settings': {
+    title: 'Settings',
+    subtitle: 'Manage your account, company, and preferences',
+  },
 };
 
 export default function Home() {
@@ -55,6 +60,8 @@ export default function Home() {
         return <Analytics />;
       case 'content':
         return <ContentStudio />;
+      case 'settings':
+        return <SettingsModule />;
       default:
         return <AIChat />;
     }
@@ -75,7 +82,11 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <Header title={config.title} subtitle={config.subtitle} />
+        <Header 
+          title={config.title} 
+          subtitle={config.subtitle} 
+          onNavigate={setActiveModule}
+        />
 
         {/* Content Area */}
         <main className="flex-1 overflow-hidden">

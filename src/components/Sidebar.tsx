@@ -17,6 +17,14 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface SidebarProps {
   activeModule: string;
@@ -34,12 +42,9 @@ const navItems = [
   { id: 'content', label: 'Content Studio', icon: FileText, color: 'from-indigo-500 to-blue-600' },
 ];
 
-const bottomItems = [
-  { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'logout', label: 'Logout', icon: LogOut },
-];
-
 export function Sidebar({ activeModule, onModuleChange, collapsed, onToggleCollapse }: SidebarProps) {
+  const [showLogoutDialog, setShowLogoutDialog] = React.useState(false);
+
   return (
     <TooltipProvider delayDuration={0}>
       <aside
@@ -115,33 +120,61 @@ export function Sidebar({ activeModule, onModuleChange, collapsed, onToggleColla
 
         {/* Bottom Section */}
         <div className="p-3 border-t border-[oklch(0.25_0.03_280)] space-y-1">
-          {bottomItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Tooltip key={item.id}>
-                <TooltipTrigger asChild>
-                  <button
-                    className={cn(
-                      'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 hover:bg-[oklch(0.18_0.03_280)]',
-                      collapsed && 'justify-center'
-                    )}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-[oklch(0.2_0.03_280)] flex items-center justify-center">
-                      <Icon className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                    {!collapsed && (
-                      <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                {collapsed && (
-                  <TooltipContent side="right" className="bg-[oklch(0.2_0.03_280)] border-[oklch(0.3_0.04_280)]">
-                    <p>{item.label}</p>
-                  </TooltipContent>
+          {/* Settings Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onModuleChange('settings')}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 hover:bg-[oklch(0.18_0.03_280)]',
+                  activeModule === 'settings' && 'bg-[oklch(0.18_0.03_280)]',
+                  collapsed && 'justify-center'
                 )}
-              </Tooltip>
-            );
-          })}
+              >
+                <div className={cn(
+                  'w-8 h-8 rounded-lg flex items-center justify-center',
+                  activeModule === 'settings' ? 'bg-purple-500/20' : 'bg-[oklch(0.2_0.03_280)]'
+                )}>
+                  <Settings className={cn('w-4 h-4', activeModule === 'settings' ? 'text-purple-400' : 'text-muted-foreground')} />
+                </div>
+                {!collapsed && (
+                  <span className={cn('text-sm font-medium', activeModule === 'settings' ? 'text-purple-400' : 'text-muted-foreground')}>
+                    Settings
+                  </span>
+                )}
+              </button>
+            </TooltipTrigger>
+            {collapsed && (
+              <TooltipContent side="right" className="bg-[oklch(0.2_0.03_280)] border-[oklch(0.3_0.04_280)]">
+                <p>Settings</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+
+          {/* Logout Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setShowLogoutDialog(true)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 hover:bg-red-500/10',
+                  collapsed && 'justify-center'
+                )}
+              >
+                <div className="w-8 h-8 rounded-lg bg-[oklch(0.2_0.03_280)] flex items-center justify-center">
+                  <LogOut className="w-4 h-4 text-red-400" />
+                </div>
+                {!collapsed && (
+                  <span className="text-sm font-medium text-red-400">Logout</span>
+                )}
+              </button>
+            </TooltipTrigger>
+            {collapsed && (
+              <TooltipContent side="right" className="bg-[oklch(0.2_0.03_280)] border-[oklch(0.3_0.04_280)]">
+                <p>Logout</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
 
           {/* Collapse Toggle */}
           <Tooltip>
@@ -172,6 +205,30 @@ export function Sidebar({ activeModule, onModuleChange, collapsed, onToggleColla
             )}
           </Tooltip>
         </div>
+
+        {/* Logout Dialog */}
+        <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+          <DialogContent className="bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)]">
+            <DialogHeader>
+              <DialogTitle className="text-white">Sign Out</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Are you sure you want to sign out? You will need to log in again to access your dashboard.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowLogoutDialog(false)} className="bg-[oklch(0.15_0.02_280)] border-[oklch(0.25_0.03_280)]">
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={() => {
+                setShowLogoutDialog(false);
+                // In a real app, this would clear session/auth
+                alert('You have been signed out. Refresh the page to continue.');
+              }}>
+                Sign Out
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </aside>
     </TooltipProvider>
   );
