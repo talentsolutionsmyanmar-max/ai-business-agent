@@ -41,7 +41,7 @@ async function callGroq(messages: Array<{role: string, content: string}>) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: messages,
       temperature: 0.7,
       max_tokens: 2000,
@@ -49,59 +49,34 @@ async function callGroq(messages: Array<{role: string, content: string}>) {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Groq API error: ${error}`);
+    const errorData = await response.json();
+    throw new Error(`Groq API error: ${JSON.stringify(errorData)}`);
   }
 
   const data = await response.json();
   return data.choices[0]?.message?.content || 'I apologize, I was unable to generate a response.';
 }
 
-async function callZAI(messages: Array<{role: string, content: string}>) {
-  const ZAI = (await import('z-ai-web-dev-sdk')).default;
-  const zai = await ZAI.create();
-  
-  const completion = await zai.chat.completions.create({
-    messages: messages as Array<{role: 'system' | 'user' | 'assistant', content: string}>,
-    temperature: 0.7,
-    max_tokens: 2000,
-  });
-
-  return completion.choices[0]?.message?.content || 'I apologize, I was unable to generate a response.';
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, context } = body;
+    const { messages } = body;
 
     const chatMessages: Array<{role: string, content: string}> = [
       { role: 'system', content: SYSTEM_PROMPT },
       ...(messages || [])
     ];
 
-    if (context) {
-      chatMessages.push({ 
-        role: 'user', 
-        content: `Context for this request: ${context}` 
-      });
-    }
-
     let assistantMessage: string;
 
-    // Try Groq first, then ZAI
     if (process.env.GROQ_API_KEY) {
       assistantMessage = await callGroq(chatMessages);
     } else {
-      try {
-        assistantMessage = await callZAI(chatMessages);
-      } catch {
-        return NextResponse.json({
-          success: false,
-          error: 'AI service not configured. Please add GROQ_API_KEY to your environment variables. Get a free key at: https://console.groq.com/keys',
-          needsApiKey: true
-        }, { status: 500 });
-      }
+      return NextResponse.json({
+        success: false,
+        error: 'AI service not configured. Please add GROQ_API_KEY to your environment variables.',
+        needsApiKey: true
+      }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -116,7 +91,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Failed to process your request. Please try again.',
+        error: 'Failed to process your request.',
         details: errorMessage 
       },
       { status: 500 }
